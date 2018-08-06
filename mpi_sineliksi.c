@@ -42,6 +42,52 @@ char** randMatr(int n,int m){
   return A;
 }
 
+
+// SEND_PROTOTYPE: src=buffer_to_send, n=elements_number_to_send, rank=rank_of_dest
+// RECV_PROTOTYPE: dest=buffer_to_recv, n=elements_number_to_recv, rank=rank_of_src
+
+//=====================================================================================
+
+void send_south(int* src, int n, int rank){
+  MPI_Send(src, n, MPI_INT, rank, 0, MPI_COMM_WORLD);
+}
+void recv_south(int* dest, int n, int rank, MPI_Status status){
+  MPI_Recv(dest, n, MPI_INT, rank, 0, MPI_COMM_WORLD , &status);
+  MPI_Barrier(MPI_COMM_WORLD);
+}
+
+//=====================================================================================
+
+void send_southwest(int* src, int rank){
+  MPI_Send(src, 1, MPI_INT, rank, 0, MPI_COMM_WORLD);
+}
+void recv_southwest(int* dest, int rank, MPI_Status status){
+  MPI_Recv(dest, 1, MPI_INT, rank, 0, MPI_COMM_WORLD , &status);
+  MPI_Barrier(MPI_COMM_WORLD);
+}
+
+//====================================================================================
+
+void send_southeast(int* src, int rank){
+  MPI_Send(src, 1, MPI_INT, rank, 0, MPI_COMM_WORLD);
+}
+void recv_southeast(int* dest, int rank, MPI_Status status){
+  MPI_Recv(dest, 1, MPI_INT, rank, 0, MPI_COMM_WORLD , &status);
+  MPI_Barrier(MPI_COMM_WORLD);
+}
+
+//=====================================================================================
+
+void send_west(int* src, int n, int rank){
+  MPI_Send(src, n, MPI_INT, rank, 0, MPI_COMM_WORLD);
+}
+void recv_west(int* dest, int n, int rank, MPI_Status status){
+  MPI_Recv(dest, n, MPI_INT, rank, 0, MPI_COMM_WORLD , &status);
+  MPI_Barrier(MPI_COMM_WORLD);
+}
+
+//=====================================================================================
+
 int main(void) {
    int my_rank, comm_sz;
    MPI_Datatype Row,Column;
@@ -98,10 +144,35 @@ int main(void) {
    E=my_rank+1; W=my_rank-1; N=my_rank-JMAX; S=my_rank+JMAX;
    NE=N+1; NW=N-1; SE=S+1; SW=S-1;
 
-   if(my_rank<=JMAX) N=NE=NW=MPI_PROC_NULL;
-   if(my_rank>=comm_sz-JMAX) S=SE=SW=MPI_PROC_NULL;
-   if(my_rank%JMAX == 0) W=SW=NW=MPI_PROC_NULL;
-   if(my_rank%JMAX == JMAX-1) E=SE=NE=MPI_PROC_NULL;
+   // to SRC tha einai o pointer sto antikeimeno pou theloume. Tha to dinoume san orisma apeytheias
+   // to N tha einai o arithmos twn antikeimenwn analoga me thn periptwsh
+
+   if(my_rank<=JMAX){
+     N=NE=NW=MPI_PROC_NULL;
+     S,SE,SW,W,E()
+     send_south(src, n, S);
+     send_west(src, n, W);
+     send_southeast(src, NE);
+     send_southwest(src, NW);
+   }
+   if(my_rank>=comm_sz-JMAX){
+     S=SE=SW=MPI_PROC_NULL;
+     N,NE,NW,W,E()
+     send_west(src, n, W);
+   }
+   if(my_rank%JMAX == 0){
+     W=SW=NW=MPI_PROC_NULL;
+     S,SE,NE,E()
+     send_south(src, n, S);
+     send_southeast(src, NE);
+   }
+   if(my_rank%JMAX == JMAX-1){
+      E=SE=NE=MPI_PROC_NULL;
+      S,N,W,SW,NW()
+      send_south(src, n, S);
+      send_west(src, n, W);
+      send_southwest(src, NW);
+   }
 
 
    MPI_Finalize();
