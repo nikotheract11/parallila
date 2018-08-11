@@ -177,15 +177,24 @@ int main(void) {
    MPI_Request req;
 
    MPI_Isend(&a[1][1],1,Row,N,0,MPI_COMM_WORLD,&req);       // Send row north
-   MPI_Isend(&a[IMAX][1],1,Row,S,0,MPI_COMM_WORLD,&req);    // Send row south
+   MPI_Isend(&a[IMAX-1][1],1,Row,S,0,MPI_COMM_WORLD,&req);    // Send row south
    MPI_Isend(&a[1][1],1,Column,W,0,MPI_COMM_WORLD,&req);    // Send column west
-   MPI_Isend(&a[1][JMAX],1,Column,E,0,MPI_COMM_WORLD,&req); // Send column east
+   MPI_Isend(&a[1][JMAX-1],1,Column,E,0,MPI_COMM_WORLD,&req); // Send column east
    MPI_Isend(&a[1][1],1,MPI_CHAR,NW,0,MPI_COMM_WORLD,&req);
-   MPI_Isend(&a[1][JMAX],MPI_CHAR,NE,0,MPI_COMM_WORLD,&req);
-   MPI_Isend(&a[IMAX][1],MPI_CHAR,SW,0,MPI_COMM_WORLD,&req);
-   MPI_Isend(&a[IMAX][JMAX],MPI_CHAR,SE,0,MPI_COMM_WORLD,&req);
+   MPI_Isend(&a[1][JMAX-1],1,MPI_CHAR,NE,0,MPI_COMM_WORLD,&req);
+   MPI_Isend(&a[IMAX-1][1],1,MPI_CHAR,SW,0,MPI_COMM_WORLD,&req);
+   MPI_Isend(&a[IMAX-1][JMAX-1],1,MPI_CHAR,SE,0,MPI_COMM_WORLD,&req);
 
-   
+   MPI_Irecv(&a[0][1], 1, Row, N, 0, MPI_COMM_WORLD, &req);  // recv from north
+   MPI_Irecv(&a[IMAX][1], 1, Row, S, 0, MPI_COMM_WORLD, &req); // recv from south
+   MPI_Irecv(&a[1][0], 1, Column, W, 0, MPI_COMM_WORLD, &req); // recv from west
+   MPI_Irecv(&a[1][JMAX], 1, Column, E, 0, MPI_COMM_WORLD, &req);  // recv from east
+   MPI_Irecv(&a[0][0], 1, MPI_CHAR, NW, 0, MPI_COMM_WORLD, &req);
+   MPI_Irecv(&a[0][JMAX], 1, MPI_CHAR, NE, 0, MPI_COMM_WORLD, &req);
+   MPI_Irecv(&a[IMAX][0], 1, MPI_CHAR, SW, 0, MPI_COMM_WORLD, &req);
+   MPI_Irecv(&a[IMAX][JMAX], 1, MPI_CHAR, SE, 0, MPI_COMM_WORLD, &req);
+
+
    MPI_Finalize();
    return 0;
 }  /* main */
