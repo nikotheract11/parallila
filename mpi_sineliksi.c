@@ -47,6 +47,20 @@ char** randMatr(int n,int m){
 // RECV_PROTOTYPE: dest=buffer_to_recv, n=elements_number_to_recv, rank=rank_of_src
 
 //=====================================================================================
+void send_east(char** src,int dest)
+{
+  MPI_Request rq;
+  MPI_Isend(&src[1][JMAX-1],1,Column,dest,0,MPI_COMM_WORLD,&rq);
+}
+
+void recv_east(char** arr,int source)
+{
+  MPI_Irecv(&arr[1][JMAX-1],1,Column,0,MPI_COMM_WORLD,&rq);
+}
+
+void send_north(int* src, int n, int rank){
+  MPI_Isend(s, n, MPI_INT, rank, 0, MPI_COMM_WORLD);
+}
 
 void send_south(int* src, int n, int rank){
   MPI_Send(src, n, MPI_INT, rank, 0, MPI_COMM_WORLD);
@@ -149,32 +163,29 @@ int main(void) {
 
    if(my_rank<=JMAX){
      N=NE=NW=MPI_PROC_NULL;
-     S,SE,SW,W,E()
-     send_south(src, n, S);
-     send_west(src, n, W);
-     send_southeast(src, NE);
-     send_southwest(src, NW);
    }
    if(my_rank>=comm_sz-JMAX){
      S=SE=SW=MPI_PROC_NULL;
-     N,NE,NW,W,E()
-     send_west(src, n, W);
    }
    if(my_rank%JMAX == 0){
      W=SW=NW=MPI_PROC_NULL;
-     S,SE,NE,E()
-     send_south(src, n, S);
-     send_southeast(src, NE);
    }
    if(my_rank%JMAX == JMAX-1){
       E=SE=NE=MPI_PROC_NULL;
-      S,N,W,SW,NW()
-      send_south(src, n, S);
-      send_west(src, n, W);
-      send_southwest(src, NW);
    }
 
+   MPI_Request req;
 
+   MPI_Isend(&a[1][1],1,Row,N,0,MPI_COMM_WORLD,&req);       // Send row north
+   MPI_Isend(&a[IMAX][1],1,Row,S,0,MPI_COMM_WORLD,&req);    // Send row south
+   MPI_Isend(&a[1][1],1,Column,W,0,MPI_COMM_WORLD,&req);    // Send column west
+   MPI_Isend(&a[1][JMAX],1,Column,E,0,MPI_COMM_WORLD,&req); // Send column east
+   MPI_Isend(&a[1][1],1,MPI_CHAR,NW,0,MPI_COMM_WORLD,&req);
+   MPI_Isend(&a[1][JMAX],MPI_CHAR,NE,0,MPI_COMM_WORLD,&req);
+   MPI_Isend(&a[IMAX][1],MPI_CHAR,SW,0,MPI_COMM_WORLD,&req);
+   MPI_Isend(&a[IMAX][JMAX],MPI_CHAR,SE,0,MPI_COMM_WORLD,&req);
+
+   
    MPI_Finalize();
    return 0;
 }  /* main */
