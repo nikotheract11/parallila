@@ -101,6 +101,10 @@ int main(int argc,char** argv) {
    MPI_Irecv(&a[0][JMAX], 1, MPI_CHAR, NE, 0, MPI_COMM_WORLD, &req);
    MPI_Irecv(&a[IMAX][0], 1, MPI_CHAR, SW, 0, MPI_COMM_WORLD, &req);
    MPI_Irecv(&a[IMAX][JMAX], 1, MPI_CHAR, SE, 0, MPI_COMM_WORLD, &req);
+<<<<<<< HEAD
+=======
+
+>>>>>>> 7aff104a193b5bf5411294c2c176335e7fe89d8b
 
    MPI_Finalize();
    return 0;
