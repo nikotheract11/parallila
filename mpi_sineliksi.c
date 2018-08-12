@@ -5,6 +5,16 @@
 #define IMAX 4
 #define JMAX 4
 
+//function to calculate output matrix
+int output(int* A, int i, int j, int* h, int s){
+  int temp = 0, p, q;
+  for(p = -s; p < s; p++)
+   for(q = -s; q < s; q++)
+     temp += A[i-p,j-q];
+  temp *= h[p+1,q+1];
+  return temp;
+}
+
 char** randMatr(int n,int m){
   int i, j;
 	time_t t;
@@ -86,6 +96,14 @@ int main(int argc,char** argv) {
    MPI_Irecv(&a[0][JMAX], 1, MPI_CHAR, NE, 0, MPI_COMM_WORLD, &req);
    MPI_Irecv(&a[IMAX][0], 1, MPI_CHAR, SW, 0, MPI_COMM_WORLD, &req);
    MPI_Irecv(&a[IMAX][JMAX], 1, MPI_CHAR, SE, 0, MPI_COMM_WORLD, &req);
+
+   // h' matrix
+   float h[3][3] = {{0.0625, 0.125, 0.0625}, {0.125, 0.25, 0.125}, {0.0625, 0.125, 0.0625}};
+   int* b[IMAX+1][JMAX+1];
+   for(int i = 1; i <= IMAX-1; i++)
+      for(int j = 1; j <= JMAX-1; j++)
+          b[i,j] = output(a,i,j,h,1);
+
 
    MPI_Finalize();
    return 0;
