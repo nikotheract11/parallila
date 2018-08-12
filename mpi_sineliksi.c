@@ -78,25 +78,27 @@ int main(int argc,char** argv) {
       E=SE=NE=MPI_PROC_NULL;
    }
 
-   MPI_Request req;
+   MPI_Request reqsend[8], reqrecv[8];
 
-   MPI_Isend(&a[1][1],1,Row,N,0,MPI_COMM_WORLD,&req);       // Send row north
-   MPI_Isend(&a[IMAX-1][1],1,Row,S,0,MPI_COMM_WORLD,&req);    // Send row south
-   MPI_Isend(&a[1][1],1,Column,W,0,MPI_COMM_WORLD,&req);    // Send column west
-   MPI_Isend(&a[1][JMAX-1],1,Column,E,0,MPI_COMM_WORLD,&req); // Send column east
-   MPI_Isend(&a[1][1],1,MPI_CHAR,NW,0,MPI_COMM_WORLD,&req);
-   MPI_Isend(&a[1][JMAX-1],1,MPI_CHAR,NE,0,MPI_COMM_WORLD,&req);
-   MPI_Isend(&a[IMAX-1][1],1,MPI_CHAR,SW,0,MPI_COMM_WORLD,&req);
-   MPI_Isend(&a[IMAX-1][JMAX-1],1,MPI_CHAR,SE,0,MPI_COMM_WORLD,&req);
+   MPI_Isend(&a[1][1],1,Row,N,0,MPI_COMM_WORLD,&reqsend[0]);       // Send row north
+   MPI_Isend(&a[IMAX-1][1],1,Row,S,0,MPI_COMM_WORLD,&reqsend[1]);    // Send row south
+   MPI_Isend(&a[1][1],1,Column,W,0,MPI_COMM_WORLD,&reqsend[2]);    // Send column west
+   MPI_Isend(&a[1][JMAX-1],1,Column,E,0,MPI_COMM_WORLD,&reqsend[3]); // Send column east
+   MPI_Isend(&a[1][1],1,MPI_CHAR,NW,0,MPI_COMM_WORLD,&reqsend[4]);
+   MPI_Isend(&a[1][JMAX-1],1,MPI_CHAR,NE,0,MPI_COMM_WORLD,&reqsend[5]);
+   MPI_Isend(&a[IMAX-1][1],1,MPI_CHAR,SW,0,MPI_COMM_WORLD,&reqsend[6]);
+   MPI_Isend(&a[IMAX-1][JMAX-1],1,MPI_CHAR,SE,0,MPI_COMM_WORLD,&reqsend[7]);
+   MPI_Waitall(8,reqsend,MPI_STATUSES_IGNORE);
 
-   MPI_Irecv(&a[0][1], 1, Row, N, 0, MPI_COMM_WORLD, &req);  // recv from north
-   MPI_Irecv(&a[IMAX][1], 1, Row, S, 0, MPI_COMM_WORLD, &req); // recv from south
-   MPI_Irecv(&a[1][0], 1, Column, W, 0, MPI_COMM_WORLD, &req); // recv from west
-   MPI_Irecv(&a[1][JMAX], 1, Column, E, 0, MPI_COMM_WORLD, &req);  // recv from east
-   MPI_Irecv(&a[0][0], 1, MPI_CHAR, NW, 0, MPI_COMM_WORLD, &req);
-   MPI_Irecv(&a[0][JMAX], 1, MPI_CHAR, NE, 0, MPI_COMM_WORLD, &req);
-   MPI_Irecv(&a[IMAX][0], 1, MPI_CHAR, SW, 0, MPI_COMM_WORLD, &req);
-   MPI_Irecv(&a[IMAX][JMAX], 1, MPI_CHAR, SE, 0, MPI_COMM_WORLD, &req);
+   MPI_Irecv(&a[0][1], 1, Row, N, 0, MPI_COMM_WORLD, &reqrecv[0]);  // recv from north
+   MPI_Irecv(&a[IMAX][1], 1, Row, S, 0, MPI_COMM_WORLD, &reqrecv[1]); // recv from south
+   MPI_Irecv(&a[1][0], 1, Column, W, 0, MPI_COMM_WORLD, &reqrecv[2]); // recv from west
+   MPI_Irecv(&a[1][JMAX], 1, Column, E, 0, MPI_COMM_WORLD, &reqrecv[3]);  // recv from east
+   MPI_Irecv(&a[0][0], 1, MPI_CHAR, NW, 0, MPI_COMM_WORLD, &reqrecv[4]);
+   MPI_Irecv(&a[0][JMAX], 1, MPI_CHAR, NE, 0, MPI_COMM_WORLD, &reqrecv[5]);
+   MPI_Irecv(&a[IMAX][0], 1, MPI_CHAR, SW, 0, MPI_COMM_WORLD, &reqrecv[6]);
+   MPI_Irecv(&a[IMAX][JMAX], 1, MPI_CHAR, SE, 0, MPI_COMM_WORLD, &reqrecv[7]);
+   MPI_Waitall(8,reqrecv,MPI_STATUSES_IGNORE);
 
    // h' matrix
    float h[3][3] = {{0.0625, 0.125, 0.0625}, {0.125, 0.25, 0.125}, {0.0625, 0.125, 0.0625}};
