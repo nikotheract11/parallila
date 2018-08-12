@@ -7,7 +7,8 @@
 
 //function to calculate output matrix
 int output(int* A, int i, int j, int* h, int s){
-  int temp = 0, p, q;
+  char temp = 0
+  int p, q;
   for(p = -s; p < s; p++)
    for(q = -s; q < s; q++)
      temp += A[i-p,j-q];
@@ -99,7 +100,9 @@ int main(int argc,char** argv) {
 
    // h' matrix
    float h[3][3] = {{0.0625, 0.125, 0.0625}, {0.125, 0.25, 0.125}, {0.0625, 0.125, 0.0625}};
-   int* b[IMAX+1][JMAX+1];
+   char** b = malloc((IMAX+1)*sizeof(char*));
+   for(int k = 0; k < JMAX+1; k++)
+      b[k] = malloc(JMAX+1);
    for(int i = 1; i <= IMAX-1; i++)
       for(int j = 1; j <= JMAX-1; j++)
           b[i,j] = output(a,i,j,h,1);
