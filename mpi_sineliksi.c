@@ -1,16 +1,3 @@
-/* File:     mpi_output.c
- *
- * Purpose:  A program in which multiple MPI processes try to print
- *           a message.
- *
- * Compile:  mpicc -g -Wall -o mpi_output mpi_output.c
- * Usage:    mpiexec -n<number of processes> ./mpi_output
- *
- * Input:    None
- * Output:   A message from each process
- *
- * IPP:      Section 3.3.1  (pp. 97 and ff.)
- */
 #include <stdio.h>
 #include <mpi.h>
 #include <time.h>
@@ -41,8 +28,6 @@ char** randMatr(int n,int m){
 	}
   return A;
 }
-
-//=====================================================================================
 
 int main(int argc,char** argv) {
    int my_rank, comm_sz;
@@ -101,10 +86,6 @@ int main(int argc,char** argv) {
    MPI_Irecv(&a[0][JMAX], 1, MPI_CHAR, NE, 0, MPI_COMM_WORLD, &req);
    MPI_Irecv(&a[IMAX][0], 1, MPI_CHAR, SW, 0, MPI_COMM_WORLD, &req);
    MPI_Irecv(&a[IMAX][JMAX], 1, MPI_CHAR, SE, 0, MPI_COMM_WORLD, &req);
-<<<<<<< HEAD
-=======
-
->>>>>>> 7aff104a193b5bf5411294c2c176335e7fe89d8b
 
    MPI_Finalize();
    return 0;
