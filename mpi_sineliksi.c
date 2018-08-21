@@ -16,7 +16,7 @@ static inline int output(unsigned char* A, int i, int j, float** h, int s,int RO
   for(p = -s; p < s; p++)
    for(q = -s; q < s; q++)
      temp += A[(i-p)*ROWS+j-q];
-  temp *= 2;//h[p+1][q+1];
+  temp = (char)temp*h[p+1][q+1];
   return temp;
 }
 
@@ -78,7 +78,7 @@ int main(int argc,char** argv) {
 
    // open and read input image
    MPI_File f;
-   MPI_File_open(MPI_COMM_WORLD,filenamein,MPI_MODE_READONLY,MPI_INFO_NULL,&f);
+   MPI_File_open(new,filenamein,MPI_MODE_READONLY,MPI_INFO_NULL,&f);
    int BUFSIZE = FILESIZE/comm_sz;
    MPI_File_seek(f,my_rank*BUFSIZE,MPI_SEEK_SET);
    char* buffer = malloc(BUFSIZE*sizeof(char));
@@ -103,8 +103,8 @@ int main(int argc,char** argv) {
 
   // int ROWS=JMAX+2;
 
-  MPI_Barrier(MPI_COMM_WORLD);
-  clock_t start = clock();
+  MPI_Barrier(new);
+  time_t start = time(NULL);
 
    MPI_Isend(&a[1*ROWS+1],1,Row,N,0,new,&reqsend[0]);       // Send row north
    MPI_Isend(&a[IMAX*ROWS+1],1,Row,S,0,new,&reqsend[1]);    // Send row south
@@ -155,15 +155,15 @@ int main(int argc,char** argv) {
     }
 
     // open and write output image
-    MPI_File_open(MPI_COMM_WORLD,filenameout,MPI_MODE_READONLY,MPI_INFO_NULL,&f);
+    MPI_File_open(new,filenameout,MPI_MODE_READONLY,MPI_INFO_NULL,&f);
     offset = my_rank*BUFSIZE*sizeof(char);
-    MPI_File_write(f,offset,buffer,BUFSIZE,MPI_CHAR,&status);
+    MPI_File_write_at(f,offset,buffer,BUFSIZE,MPI_CHAR,&status);
     printf("\nRank: %d, Offset: %d\n", my_rank, offset);
     MPI_File_close(&f);
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    clock_t end = clock();
-    printf("Time elapsed for process %d is %d.\n", my_rank, end-begin);
+    MPI_Barrier(new);
+    time_t end = time(NULL);
+    printf("Time elapsed for process %d is %f seconds.\n", my_rank, difftime(end, start));
 
    MPI_Finalize();
    return 0;
