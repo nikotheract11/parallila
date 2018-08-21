@@ -31,6 +31,28 @@ int main(int argc,char** argv) {
      printf("proc:%d source = %d and dest=%d\n",my_rank,s,d );
    }
 
+   //int a[3][3]={{1,2,3},{1,2,3},{1,2,3}};
+   int **a = malloc(3*sizeof(int*));
+   for(int i=0;i<3;i++) {
+     a[i] = malloc(3*sizeof(int));
+     for(int j=0;j<3;j++) a[i][j] = j;
+   }
+
+   MPI_Type_vector( 3, 1, 3, MPI_INT,&Column);     // +2 for the two halo columns and rows
+   MPI_Type_commit(&Column);
+   int **b = malloc(3*sizeof(int*));
+   for(int i=0;i<3;i++) {
+     b[i] = malloc(3*sizeof(int));
+  //   for(int j=0;j<3;j++) a[i][j] = j;
+   }
+   if(my_rank==1) {
+     MPI_Send(&a[0][2],1,Column,2,0,new);
+   }
+   if(my_rank==2){
+     MPI_Recv(b[0]+1,3,Column,1,0,new,MPI_STATUSES_IGNORE);
+     for(int o=0;o<3;o++) printf("%d\n",b[o][1] );
+   }
+
 
       MPI_Finalize();
       return 0;

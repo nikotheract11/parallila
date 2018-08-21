@@ -3,12 +3,6 @@
 #include <time.h>
 #include <stdlib.h>
 
-//#define IMAX 4
-//#define JMAX 4
-
-//int ROWS=JMAX+2;
-
-
 //function to calculate output matrix
 static inline int output(unsigned char* A, int i, int j, float** h, int s,int ROWS){
   char temp = 0;
@@ -68,7 +62,7 @@ int main(int argc,char** argv) {
    MPI_Type_contiguous(JMAX,MPI_UNSIGNED_CHAR,&Row);
    MPI_Type_commit(&Row);
 
-   unsigned char* a ;//= randMatr(IMAX,JMAX,my_rank);
+   unsigned char* a;
    mat(&a,my_rank,IMAX,JMAX);
    printf("1. OK\n");
 
@@ -87,8 +81,6 @@ int main(int argc,char** argv) {
 
    MPI_Request reqsend[8], reqrecv[8];
 
-  // int ROWS=JMAX+2;
-
    MPI_Isend(&a[1*ROWS+1],1,Row,N,0,new,&reqsend[0]);       // Send row north
    MPI_Isend(&a[IMAX*ROWS+1],1,Row,S,0,new,&reqsend[1]);    // Send row south
    MPI_Isend(&a[1*ROWS+2],1,Column,W,0,new,&reqsend[2]);    // Send column west
@@ -97,7 +89,6 @@ int main(int argc,char** argv) {
    MPI_Isend(&a[1*ROWS+JMAX],1,MPI_CHAR,NE,0,new,&reqsend[5]);
    MPI_Isend(&a[IMAX*ROWS+1],1,MPI_CHAR,SW,0,new,&reqsend[6]);
    MPI_Isend(&a[IMAX*ROWS+JMAX],1,MPI_CHAR,SE,0,new,&reqsend[7]);
-
 
 
    MPI_Irecv(&a[0*ROWS+1], 1, Row, N, 0, new, &reqrecv[0]);  // recv from north
@@ -110,17 +101,15 @@ int main(int argc,char** argv) {
    MPI_Irecv(&a[(IMAX+1)*ROWS+0], 1, MPI_CHAR, SW, 0, new, &reqrecv[6]);
    MPI_Irecv(&a[(IMAX+1)*ROWS+JMAX+1], 1, MPI_CHAR, SE, 0, new, &reqrecv[7]);
 
-   printf("2. OK\n");
-
 
    // calculate inner subarray
    float h[3][3] = {{0.0625, 0.125, 0.0625}, {0.125, 0.25, 0.125}, {0.0625, 0.125, 0.0625}};
    char* b = malloc((IMAX+2)*(JMAX+2)*sizeof(char*));
+
    for(int i = 2; i < IMAX; i++)
       for(int j = 2; j < JMAX; j++)
           b[i*ROWS+j] = output(a,i,j,(float**)h,1,ROWS);
 
-    MPI_Waitall(8,reqsend,MPI_STATUSES_IGNORE);
     MPI_Waitall(8,reqrecv,MPI_STATUSES_IGNORE);
 
     for(int j = 1; j<=JMAX; j++){
@@ -136,6 +125,7 @@ int main(int argc,char** argv) {
       b[i*ROWS+1] = output(a,i,1,(float**)h,1,ROWS);        // first column
       b[i*ROWS+JMAX] = output(a,i,JMAX,(float**)h,1,ROWS);  // last column
     }
+    MPI_Waitall(8,reqsend,MPI_STATUSES_IGNORE);
    MPI_Finalize();
    return 0;
 }  /* main */
