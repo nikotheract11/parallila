@@ -47,6 +47,7 @@ static inline void mat(unsigned char** a,int l,int IMAX,int JMAX){
 int main(int argc,char** argv) {
    int my_rank, comm_sz;
    MPI_Datatype Row,Column;
+   MPI_Status status;
 
    char* filenamein = argv[3];
    char* filenameout = "output";
@@ -78,7 +79,7 @@ int main(int argc,char** argv) {
 
    // open and read input image
    MPI_File f;
-   MPI_File_open(new,filenamein,MPI_MODE_READONLY,MPI_INFO_NULL,&f);
+   MPI_File_open(new,filenamein,MPI_MODE_RDONLY,MPI_INFO_NULL,&f);
    int BUFSIZE = FILESIZE/comm_sz;
    MPI_File_seek(f,my_rank*BUFSIZE,MPI_SEEK_SET);
    char* buffer = malloc(BUFSIZE*sizeof(char));
@@ -155,8 +156,8 @@ int main(int argc,char** argv) {
     }
 
     // open and write output image
-    MPI_File_open(new,filenameout,MPI_MODE_READONLY,MPI_INFO_NULL,&f);
-    offset = my_rank*BUFSIZE*sizeof(char);
+    MPI_File_open(new,filenameout,MPI_MODE_CREATE|MPI_MODE_WRONLY,MPI_INFO_NULL,&f);
+    int offset = my_rank*BUFSIZE*sizeof(char);
     MPI_File_write_at(f,offset,buffer,BUFSIZE,MPI_CHAR,&status);
     printf("\nRank: %d, Offset: %d\n", my_rank, offset);
     MPI_File_close(&f);
