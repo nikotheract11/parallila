@@ -48,6 +48,10 @@ int main(int argc,char** argv) {
    int my_rank, comm_sz;
    MPI_Datatype Row,Column;
 
+   char* filenamein = argv[3];
+   char* filenameout = "output";
+   int FILESIZE = 8192;
+
    int IMAX = atoi(argv[1]);
    int JMAX = atoi(argv[2]);
    int ROWS = JMAX+2;
@@ -72,6 +76,16 @@ int main(int argc,char** argv) {
    mat(&a,my_rank,IMAX,JMAX);
    printf("1. OK\n");
 
+   // open and read input image
+   MPI_File f;
+   MPI_File_open(MPI_COMM_WORLD,filenamein,MPI_MODE_READONLY,MPI_INFO_NULL,&f);
+   int BUFSIZE = FILESIZE/comm_sz;
+   MPI_File_seek(f,my_rank*BUFSIZE,MPI_SEEK_SET);
+   char* buffer = malloc(BUFSIZE*sizeof(char));
+   MPI_File_read(f,buffer,BUFSIZE/sizeof(char),MPI_CHAR,&status);
+   printf("\nrank: %d, buffer[%d]: %d", my_rank, my_rank*BUFSIZE, buffer[0]);
+   MPI_File_close(&f);
+
    int E,W,N,S,NE,NW,SE,SW;
    MPI_Cart_shift(new,0,1,&N,&S);
    MPI_Cart_shift(new,1,1,&W,&E);
@@ -88,6 +102,9 @@ int main(int argc,char** argv) {
    MPI_Request reqsend[8], reqrecv[8];
 
   // int ROWS=JMAX+2;
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  clock_t start = clock();
 
    MPI_Isend(&a[1*ROWS+1],1,Row,N,0,new,&reqsend[0]);       // Send row north
    MPI_Isend(&a[IMAX*ROWS+1],1,Row,S,0,new,&reqsend[1]);    // Send row south
@@ -136,6 +153,18 @@ int main(int argc,char** argv) {
       b[i*ROWS+1] = output(a,i,1,(float**)h,1,ROWS);        // first column
       b[i*ROWS+JMAX] = output(a,i,JMAX,(float**)h,1,ROWS);  // last column
     }
+
+    // open and write output image
+    MPI_File_open(MPI_COMM_WORLD,filenameout,MPI_MODE_READONLY,MPI_INFO_NULL,&f);
+    offset = my_rank*BUFSIZE*sizeof(char);
+    MPI_File_write(f,offset,buffer,BUFSIZE,MPI_CHAR,&status);
+    printf("\nRank: %d, Offset: %d\n", my_rank, offset);
+    MPI_File_close(&f);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    clock_t end = clock();
+    printf("Time elapsed for process %d is %d.\n", my_rank, end-begin);
+
    MPI_Finalize();
    return 0;
 }  /* main */
