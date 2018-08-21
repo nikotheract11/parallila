@@ -3,25 +3,24 @@
 #include <time.h>
 #include <stdlib.h>
 
+//#define IMAX 4
+//#define JMAX 4
 
-#define IMAX 4
-#define JMAX 4
-int ROWS=JMAX+2;
+//int ROWS=JMAX+2;
+
 
 //function to calculate output matrix
-int output(int* A, int i, int j, int* h, int s){
+static inline int output(unsigned char* A, int i, int j, float** h, int s,int ROWS){
   char temp = 0;
   int p, q;
   for(p = -s; p < s; p++)
    for(q = -s; q < s; q++)
      temp += A[(i-p)*ROWS+j-q];
-  temp *= h[p+1,q+1];
+  temp *= 2;//h[p+1][q+1];
   return temp;
 }
 
-
-
-void print_hallos(unsigned char* a,int r)
+/*void print_hallos(unsigned char* a,int r)
 {
   printf("\n\n PROC %d\n\n",r );
   printf("first row:\n");
@@ -33,9 +32,9 @@ void print_hallos(unsigned char* a,int r)
   printf("\n\nlast col\n" );
   for(int i=0;i<IMAX+2;i++) printf("%u ",a[i*ROWS+JMAX+1] );
   printf("\n\n END PROC %d\n",r );
-}
+}*/
 
-void mat(unsigned char** a,int l){
+static inline void mat(unsigned char** a,int l,int IMAX,int JMAX){
   *a = malloc((IMAX+2)*(JMAX+2)*sizeof(unsigned char));
   for(int i=0;i<IMAX+2;i++) {
     for(int j=0;j<JMAX+2;j++) {
@@ -48,7 +47,10 @@ void mat(unsigned char** a,int l){
 int main(int argc,char** argv) {
    int my_rank, comm_sz;
    MPI_Datatype Row,Column;
-   MPI_Status  status;
+
+   int IMAX = atoi(argv[1]);
+   int JMAX = atoi(argv[2]);
+   int ROWS = JMAX+2;
 
    MPI_Init(NULL, NULL);
 
@@ -67,7 +69,8 @@ int main(int argc,char** argv) {
    MPI_Type_commit(&Row);
 
    unsigned char* a ;//= randMatr(IMAX,JMAX,my_rank);
-   mat(&a,my_rank);
+   mat(&a,my_rank,IMAX,JMAX);
+   printf("1. OK\n");
 
    int E,W,N,S,NE,NW,SE,SW;
    MPI_Cart_shift(new,0,1,&N,&S);
@@ -84,7 +87,7 @@ int main(int argc,char** argv) {
 
    MPI_Request reqsend[8], reqrecv[8];
 
-   int ROWS=JMAX+2;
+  // int ROWS=JMAX+2;
 
    MPI_Isend(&a[1*ROWS+1],1,Row,N,0,new,&reqsend[0]);       // Send row north
    MPI_Isend(&a[IMAX*ROWS+1],1,Row,S,0,new,&reqsend[1]);    // Send row south
@@ -107,21 +110,32 @@ int main(int argc,char** argv) {
    MPI_Irecv(&a[(IMAX+1)*ROWS+0], 1, MPI_CHAR, SW, 0, new, &reqrecv[6]);
    MPI_Irecv(&a[(IMAX+1)*ROWS+JMAX+1], 1, MPI_CHAR, SE, 0, new, &reqrecv[7]);
 
+   printf("2. OK\n");
 
-   // h' matrix
+
+   // calculate inner subarray
    float h[3][3] = {{0.0625, 0.125, 0.0625}, {0.125, 0.25, 0.125}, {0.0625, 0.125, 0.0625}};
    char* b = malloc((IMAX+2)*(JMAX+2)*sizeof(char*));
-   for(int i = 1; i <= IMAX+1; i++)
-      for(int j = 1; j <= JMAX+1; j++)
-          b[i*ROWS+j] = output(a,i,j,h,1);
+   for(int i = 2; i < IMAX; i++)
+      for(int j = 2; j < JMAX; j++)
+          b[i*ROWS+j] = output(a,i,j,(float**)h,1,ROWS);
 
     MPI_Waitall(8,reqsend,MPI_STATUSES_IGNORE);
     MPI_Waitall(8,reqrecv,MPI_STATUSES_IGNORE);
 
+    for(int j = 1; j<=JMAX; j++){
+      b[1*ROWS+j] = output(a,1,j,(float**)h,1,ROWS);  // first row
+      b[IMAX*ROWS+j] = output(a,IMAX,j,(float**)h,1,ROWS); // last row
+    }
 
-    if(my_rank==5) print_hallos(a,my_rank);
+    /* now we start from 2 and end up to IMAX-1 because the first and
+    the last element of the first column is also calculated in the
+    first and last row */
 
-
+    for(int i = 2; i<IMAX; i++){
+      b[i*ROWS+1] = output(a,i,1,(float**)h,1,ROWS);        // first column
+      b[i*ROWS+JMAX] = output(a,i,JMAX,(float**)h,1,ROWS);  // last column
+    }
    MPI_Finalize();
    return 0;
 }  /* main */
