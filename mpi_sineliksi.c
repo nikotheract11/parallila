@@ -84,7 +84,7 @@ int main(int argc,char** argv) {
    MPI_File_seek(f,my_rank*BUFSIZE,MPI_SEEK_SET);
    char* buffer = malloc(BUFSIZE*sizeof(char));
    MPI_File_read(f,buffer,BUFSIZE/sizeof(char),MPI_CHAR,&status);
-   printf("\nrank: %d, buffer[%d]: %d", my_rank, my_rank*BUFSIZE, buffer[0]);
+   printf("\nrank: %d, buffer[%d]: %u", my_rank, my_rank*BUFSIZE, buffer[0]);
    MPI_File_close(&f);
 
    int E,W,N,S,NE,NW,SE,SW;
@@ -105,7 +105,7 @@ int main(int argc,char** argv) {
   // int ROWS=JMAX+2;
 
   MPI_Barrier(new);
-  time_t start = time(NULL);
+  double start = MPI_Wtime();
 
    MPI_Isend(&a[1*ROWS+1],1,Row,N,0,new,&reqsend[0]);       // Send row north
    MPI_Isend(&a[IMAX*ROWS+1],1,Row,S,0,new,&reqsend[1]);    // Send row south
@@ -163,8 +163,8 @@ int main(int argc,char** argv) {
     MPI_File_close(&f);
 
     MPI_Barrier(new);
-    time_t end = time(NULL);
-    printf("Time elapsed for process %d is %f seconds.\n", my_rank, difftime(end, start));
+    double end = MPI_Wtime();
+    printf("Time elapsed for process %d is %f seconds.\n", my_rank, end-start);
 
    MPI_Finalize();
    return 0;
