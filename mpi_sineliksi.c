@@ -10,13 +10,14 @@
 
 
 //function to calculate output matrix
-static inline int output(unsigned char* A, int i, int j, float** h, int s,int ROWS){
-  char temp = 0;
+static inline int output(unsigned char* A, int i, int j, unsigned char** h, int s,int ROWS){
+  unsigned char temp = 0;
   int p, q;
+  printf("%u",h[2][2] );
   for(p = -s; p < s; p++)
    for(q = -s; q < s; q++)
-     temp += A[(i-p)*ROWS+j-q];
-  temp = (char)temp*h[p+1][q+1];
+     temp += A[(i-p)*ROWS+j-q]*2;//h[1][1];
+  // temp *= 2;// (char)temp*h[p+1][q+1];
   return temp;
 }
 
@@ -51,11 +52,18 @@ int main(int argc,char** argv) {
 
    char* filenamein = argv[3];
    char* filenameout = "output";
-   int FILESIZE = 8192;
 
    int IMAX = atoi(argv[1]);
    int JMAX = atoi(argv[2]);
    int ROWS = JMAX+2;
+
+   // calculate size of the file
+   FILE *fp;
+   fp=fopen(filenamein,"r");
+   fseek(fp, 0L, SEEK_END);
+   int FILESIZE = ftell(fp);
+   fclose(fp);
+
 
    MPI_Init(NULL, NULL);
 
@@ -132,18 +140,18 @@ int main(int argc,char** argv) {
 
 
    // calculate inner subarray
-   float h[3][3] = {{0.0625, 0.125, 0.0625}, {0.125, 0.25, 0.125}, {0.0625, 0.125, 0.0625}};
+   unsigned char h[3][3];// = {{0.0625, 0.125, 0.0625}, {0.125, 0.25, 0.125}, {0.0625, 0.125, 0.0625}};
    char* b = malloc((IMAX+2)*(JMAX+2)*sizeof(char*));
    for(int i = 2; i < IMAX; i++)
       for(int j = 2; j < JMAX; j++)
-          b[i*ROWS+j] = output(a,i,j,(float**)h,1,ROWS);
+          b[i*ROWS+j] = output(a,i,j,h,1,ROWS);
 
     MPI_Waitall(8,reqsend,MPI_STATUSES_IGNORE);
     MPI_Waitall(8,reqrecv,MPI_STATUSES_IGNORE);
 
     for(int j = 1; j<=JMAX; j++){
-      b[1*ROWS+j] = output(a,1,j,(float**)h,1,ROWS);  // first row
-      b[IMAX*ROWS+j] = output(a,IMAX,j,(float**)h,1,ROWS); // last row
+      b[1*ROWS+j] = output(a,1,j,h,1,ROWS);  // first row
+      b[IMAX*ROWS+j] = output(a,IMAX,j,h,1,ROWS); // last row
     }
 
     /* now we start from 2 and end up to IMAX-1 because the first and
@@ -151,13 +159,14 @@ int main(int argc,char** argv) {
     first and last row */
 
     for(int i = 2; i<IMAX; i++){
-      b[i*ROWS+1] = output(a,i,1,(float**)h,1,ROWS);        // first column
-      b[i*ROWS+JMAX] = output(a,i,JMAX,(float**)h,1,ROWS);  // last column
+      b[i*ROWS+1] = output(a,i,1,h,1,ROWS);        // first column
+      b[i*ROWS+JMAX] = output(a,i,JMAX,h,1,ROWS);  // last column
     }
 
     // open and write output image
     MPI_File_open(new,filenameout,MPI_MODE_CREATE|MPI_MODE_WRONLY,MPI_INFO_NULL,&f);
     int offset = my_rank*BUFSIZE*sizeof(char);
+
     MPI_File_write_at(f,offset,buffer,BUFSIZE,MPI_CHAR,&status);
     printf("\nRank: %d, Offset: %d\n", my_rank, offset);
     MPI_File_close(&f);
