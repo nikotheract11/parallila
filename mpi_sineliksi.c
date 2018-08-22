@@ -3,43 +3,33 @@
 #include <time.h>
 #include <stdlib.h>
 
-//#define IMAX 4
-//#define JMAX 4
-
-//int ROWS=JMAX+2;
-
-
 //function to calculate output matrix
 static inline int output(unsigned char* A, int i, int j, unsigned char** h, int s,int ROWS){
   unsigned char temp = 0;
   int p, q;
-  printf("%u",h[2][2] );
   for(p = -s; p < s; p++)
    for(q = -s; q < s; q++)
-     temp += A[(i-p)*ROWS+j-q]*2;//h[1][1];
-  // temp *= 2;// (char)temp*h[p+1][q+1];
+     temp += A[(i-p)*ROWS+j-q]*h[p+1][q+1];
   return temp;
 }
 
-/*void print_hallos(unsigned char* a,int r)
-{
-  printf("\n\n PROC %d\n\n",r );
-  printf("first row:\n");
-  for(int j=0;j<JMAX+2;j++) printf("%u ",a[0*ROWS+j] );
-  printf("\n\n first col\n\n");
-  for(int i=0;i<IMAX+2;i++) printf("%u ",a[i*ROWS+0] );
-  printf("\n\n last row\n" );
-  for(int j=0;j<JMAX+2;j++) printf("%u ",a[(IMAX+1)*ROWS+j] );
-  printf("\n\nlast col\n" );
-  for(int i=0;i<IMAX+2;i++) printf("%u ",a[i*ROWS+JMAX+1] );
-  printf("\n\n END PROC %d\n",r );
-}*/
+static inline char equals(unsigned char* before,unsigned char* after,int IMAX,int JMAX){
+  for(int i=1;i<IMAX+1;i++){
+    for(int j=1;j<JMAX+1;j++)    {
+      if(after[i*(JMAX+2)+j] != before[i*(JMAX+2)+j]) return 0;
+    }
+  }
+  return 1;
+}
 
-static inline void mat(unsigned char** a,int l,int IMAX,int JMAX){
+static inline void mat(unsigned char** a,int IMAX,int JMAX){
+  time_t t;
+	srand(time(NULL));
+
   *a = malloc((IMAX+2)*(JMAX+2)*sizeof(unsigned char));
   for(int i=0;i<IMAX+2;i++) {
     for(int j=0;j<JMAX+2;j++) {
-      (*a)[i*(JMAX+1)+j]=l;
+      (*a)[i*(JMAX+1)+j]=rand()%256;
     }
   }
 }
@@ -81,9 +71,8 @@ int main(int argc,char** argv) {
    MPI_Type_contiguous(JMAX,MPI_UNSIGNED_CHAR,&Row);
    MPI_Type_commit(&Row);
 
-   unsigned char* a ;//= randMatr(IMAX,JMAX,my_rank);
-   mat(&a,my_rank,IMAX,JMAX);
-   printf("1. OK\n");
+   unsigned char* a ;
+   mat(&a,IMAX,JMAX);
 
    // open and read input image
    MPI_File f;
@@ -102,19 +91,20 @@ int main(int argc,char** argv) {
    NE=N+1; NW=N-1; SE=S+1; SW=S-1;
 
    /* -1 same as MPI_Proc_NULL */
-   if(N == -1)  NE=NW=-1;
-   if(S == -1)  SE=SW=-1;
-   if(E == -1)  NE=SE=-1;
-   if(W == -1)  NW=SW=-1;
+   if(N == MPI_PROC_NULL)  NE=NW=MPI_PROC_NULL;
+   if(S == MPI_PROC_NULL)  SE=SW=MPI_PROC_NULL;
+   if(E == MPI_PROC_NULL)  NE=SE=MPI_PROC_NULL;
+   if(W == MPI_PROC_NULL)  NW=SW=MPI_PROC_NULL;
 
 
    MPI_Request reqsend[8], reqrecv[8];
 
-  // int ROWS=JMAX+2;
 
   MPI_Barrier(new);
   double start = MPI_Wtime();
+  char* b = malloc((IMAX+2)*(JMAX+2)*sizeof(char*));
 
+   while(1){
    MPI_Isend(&a[1*ROWS+1],1,Row,N,0,new,&reqsend[0]);       // Send row north
    MPI_Isend(&a[IMAX*ROWS+1],1,Row,S,0,new,&reqsend[1]);    // Send row south
    MPI_Isend(&a[1*ROWS+2],1,Column,W,0,new,&reqsend[2]);    // Send column west
@@ -140,13 +130,19 @@ int main(int argc,char** argv) {
 
 
    // calculate inner subarray
-   unsigned char h[3][3];// = {{0.0625, 0.125, 0.0625}, {0.125, 0.25, 0.125}, {0.0625, 0.125, 0.0625}};
-   char* b = malloc((IMAX+2)*(JMAX+2)*sizeof(char*));
+   unsigned char** h;//[3][3];// = {{0.0625, 0.125, 0.0625}, {0.125, 0.25, 0.125}, {0.0625, 0.125, 0.0625}};
+   h = malloc(3*sizeof(char*));
+   for(int i=0;i<3;i++){
+     h[i] = malloc(3*sizeof(unsigned char));
+     for(int j=0;j<3;j++){
+       h[i][j] = j;
+     }
+
+   }
    for(int i = 2; i < IMAX; i++)
       for(int j = 2; j < JMAX; j++)
           b[i*ROWS+j] = output(a,i,j,h,1,ROWS);
 
-    MPI_Waitall(8,reqsend,MPI_STATUSES_IGNORE);
     MPI_Waitall(8,reqrecv,MPI_STATUSES_IGNORE);
 
     for(int j = 1; j<=JMAX; j++){
@@ -170,10 +166,14 @@ int main(int argc,char** argv) {
     MPI_File_write_at(f,offset,buffer,BUFSIZE,MPI_CHAR,&status);
     printf("\nRank: %d, Offset: %d\n", my_rank, offset);
     MPI_File_close(&f);
+    MPI_Waitall(8,reqsend,MPI_STATUSES_IGNORE);
+    if(equals(a,b,IMAX,JMAX)) break;
+    a = b;
+  }
 
     MPI_Barrier(new);
     double end = MPI_Wtime();
-    printf("Time elapsed for process %d is %f seconds.\n", my_rank, end-start);
+    if(my_rank==0) printf("Time elapsed for process %d is %f seconds.\n", my_rank, end-start);
 
    MPI_Finalize();
    return 0;
