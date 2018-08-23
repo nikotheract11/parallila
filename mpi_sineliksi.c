@@ -2,6 +2,7 @@
 #include <mpi.h>
 #include <time.h>
 #include <stdlib.h>
+#include <omp.h>
 
 //function to calculate output matrix
 static inline int output(unsigned char* A, int i, int j, unsigned char** h, int s,int ROWS){
@@ -139,12 +140,19 @@ int main(int argc,char** argv) {
      }
 
    }
+   #pragma omp parallel
+   {
+   #pragma omp for collapse(2)
    for(int i = 2; i < IMAX; i++)
       for(int j = 2; j < JMAX; j++)
           b[i*ROWS+j] = output(a,i,j,h,1,ROWS);
 
+    #pragma omp single
     MPI_Waitall(8,reqrecv,MPI_STATUSES_IGNORE);
 
+    #pragma omp barrier
+
+    #pragma omp parallel for
     for(int j = 1; j<=JMAX; j++){
       b[1*ROWS+j] = output(a,1,j,h,1,ROWS);  // first row
       b[IMAX*ROWS+j] = output(a,IMAX,j,h,1,ROWS); // last row
@@ -153,11 +161,12 @@ int main(int argc,char** argv) {
     /* now we start from 2 and end up to IMAX-1 because the first and
     the last element of the first column is also calculated in the
     first and last row */
-
+    #pragma omp parallel for
     for(int i = 2; i<IMAX; i++){
       b[i*ROWS+1] = output(a,i,1,h,1,ROWS);        // first column
       b[i*ROWS+JMAX] = output(a,i,JMAX,h,1,ROWS);  // last column
     }
+  }
 
     // open and write output image
     MPI_File_open(new,filenameout,MPI_MODE_CREATE|MPI_MODE_WRONLY,MPI_INFO_NULL,&f);
