@@ -35,6 +35,18 @@ static inline void mat(unsigned char** a,int IMAX,int JMAX){
   }
 }
 
+static inline unsigned char* fit(unsigned char *buf,int IMAX,int JMAX)
+{
+   unsigned char* tmp = malloc((IMAX+2)*(JMAX+2)*sizeof(unsigned char));
+   for(int i=1;i<IMAX+1;i++) {
+     for(int j=1;j<JMAX+1;j++) {
+        tmp[i*(JMAX+1)+j] = buf[(i-1)*(JMAX+1)+j-1];
+     }
+  }
+
+  return tmp;
+}
+
 
 int main(int argc,char** argv) {
    int my_rank, comm_sz;
@@ -42,7 +54,7 @@ int main(int argc,char** argv) {
    MPI_Status status;
 
    char* filenamein = argv[3];
-   char* filenameout = "output";
+   char* filenameout = "output.raw";
 
    int IMAX = atoi(argv[1]);
    int JMAX = atoi(argv[2]);
@@ -58,8 +70,13 @@ int main(int argc,char** argv) {
 
    MPI_Init(NULL, NULL);
 
+
    MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+
+   IMAX/=comm_sz;
+   JMAX/=comm_sz;
+   ROWS = JMAX + 2;
 
    MPI_Comm new;
    int dims[2] = {4,4} ;
@@ -73,17 +90,18 @@ int main(int argc,char** argv) {
    MPI_Type_commit(&Row);
 
    unsigned char* a ;
-   mat(&a,IMAX,JMAX);
+   //mat(&a,IMAX,JMAX);
 
    // open and read input image
    MPI_File f;
    MPI_File_open(new,filenamein,MPI_MODE_RDONLY,MPI_INFO_NULL,&f);
    int BUFSIZE = FILESIZE/comm_sz;
    MPI_File_seek(f,my_rank*BUFSIZE,MPI_SEEK_SET);
-   char* buffer = malloc(BUFSIZE*sizeof(char));
+   unsigned char* buffer = malloc(BUFSIZE*sizeof(char));
    MPI_File_read(f,buffer,BUFSIZE/sizeof(char),MPI_CHAR,&status);
    printf("\nrank: %d, buffer[%d]: %u", my_rank, my_rank*BUFSIZE, buffer[0]);
    MPI_File_close(&f);
+   a = fit(buffer,IMAX,JMAX);
 
    int E,W,N,S,NE,NW,SE,SW;
    MPI_Cart_shift(new,0,1,&N,&S);
@@ -103,10 +121,12 @@ int main(int argc,char** argv) {
 
   MPI_Barrier(new);
   double start = MPI_Wtime();
-  char* b = malloc((IMAX+2)*(JMAX+2)*sizeof(char*));
+  char* b = malloc((IMAX+2)*(JMAX+2)*sizeof(char));
+
 
    while(1){
    MPI_Isend(&a[1*ROWS+1],1,Row,N,0,new,&reqsend[0]);       // Send row north
+
    MPI_Isend(&a[IMAX*ROWS+1],1,Row,S,0,new,&reqsend[1]);    // Send row south
    MPI_Isend(&a[1*ROWS+2],1,Column,W,0,new,&reqsend[2]);    // Send column west
    MPI_Isend(&a[1*ROWS+JMAX],1,Column,E,0,new,&reqsend[3]); // Send column east
@@ -172,14 +192,13 @@ int main(int argc,char** argv) {
     MPI_File_open(new,filenameout,MPI_MODE_CREATE|MPI_MODE_WRONLY,MPI_INFO_NULL,&f);
     int offset = my_rank*BUFSIZE*sizeof(char);
 
-    MPI_File_write_at(f,offset,buffer,BUFSIZE,MPI_CHAR,&status);
+    MPI_File_write_at(f,offset,b,BUFSIZE,MPI_CHAR,&status);
     printf("\nRank: %d, Offset: %d\n", my_rank, offset);
     MPI_File_close(&f);
     MPI_Waitall(8,reqsend,MPI_STATUSES_IGNORE);
     if(equals(a,b,IMAX,JMAX)) break;
     a = b;
-  }
-
+}
     MPI_Barrier(new);
     double end = MPI_Wtime();
     if(my_rank==0) printf("Time elapsed for process %d is %f seconds.\n", my_rank, end-start);
