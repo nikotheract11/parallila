@@ -47,6 +47,17 @@ static inline unsigned char* fit(unsigned char *buf,int IMAX,int JMAX)
   return tmp;
 }
 
+static inline unsigned char* repeat(unsigned char *buf,int IMAX,int JMAX)
+{
+   unsigned char* tmp = malloc(IMAX*JMAX*sizeof(unsigned char));
+   for(int i=1;i<IMAX+1;i++) {
+     for(int j=1;j<JMAX+1;j++) {
+        tmp[(i-1)*JMAX+j-1] = buf[i*JMAX+j];
+     }
+  }
+
+  return tmp;
+}
 
 int main(int argc,char** argv) {
    int my_rank, comm_sz;
@@ -192,7 +203,7 @@ int main(int argc,char** argv) {
     MPI_File_open(new,filenameout,MPI_MODE_CREATE|MPI_MODE_WRONLY,MPI_INFO_NULL,&f);
     int offset = my_rank*BUFSIZE*sizeof(char);
 
-    MPI_File_write_at(f,offset,b,BUFSIZE,MPI_CHAR,&status);
+    MPI_File_write_at(f,offset,repeat(b,IMAX,JMAX),BUFSIZE,MPI_CHAR,&status);
     printf("\nRank: %d, Offset: %d\n", my_rank, offset);
     MPI_File_close(&f);
     MPI_Waitall(8,reqsend,MPI_STATUSES_IGNORE);
