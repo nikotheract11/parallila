@@ -116,11 +116,24 @@ int main(int argc,char** argv) {
    MPI_File_open(new,filenamein,MPI_MODE_RDONLY,MPI_INFO_NULL,&f);
    int BUFSIZE = FILESIZE/comm_sz;
    MPI_Comm_rank(new, &my_rank);
-   MPI_File_seek(f,my_rank*BUFSIZE,MPI_SEEK_SET);
+   //MPI_File_seek(f,my_rank*BUFSIZE,MPI_SEEK_SET);
+   //unsigned char* buffer = malloc(BUFSIZE*sizeof(unsigned char));
+   //MPI_File_read(f,buffer,BUFSIZE/sizeof(unsigned char),MPI_UNSIGNED_CHAR,&status);
+   //printf("\nrank: %d, buffer[%d]: %u", my_rank, my_rank*BUFSIZE, buffer[0]);
+   //MPI_File_close(&f);
+   /*~~~~~~~~~~~~~~*/
+   int offsetb = 0;
+   MPI_Offset offsetf = (my_rank/4)*4*IMAX*JMAX + (my_rank%4)*JMAX;
+   MPI_File_seek(f,offsetf,MPI_SEEK_SET);
    unsigned char* buffer = malloc(BUFSIZE*sizeof(unsigned char));
-   MPI_File_read(f,buffer,BUFSIZE/sizeof(unsigned char),MPI_UNSIGNED_CHAR,&status);
-   printf("\nrank: %d, buffer[%d]: %u", my_rank, my_rank*BUFSIZE, buffer[0]);
+   for(int i = 0; i < IMAX; i++){
+     MPI_File_read(f,&buffer[offsetb],JMAX,MPI_UNSIGNED_CHAR,&status);
+     offsetf += JMAX*4+1;   // 4 = sqrt(comm_sz)
+     offsetb += JMAX;
+     MPI_File_seek(f,offsetf,MPI_SEEK_SET);
+   }
    MPI_File_close(&f);
+   /*~~~~~~~~~~~~~~*/
    a = fit(buffer,IMAX,JMAX);
 
    int E,W,N,S,NE,NW,SE,SW;
@@ -176,7 +189,7 @@ int main(int argc,char** argv) {
    for(int i=0;i<3;i++){
      h[i] = malloc(3*sizeof(unsigned char));
      for(int j=0;j<3;j++){
-       h[i][j] = j;
+       h[i][j] = i*j*100;
      }
     /*h[0][0] = 0.0625;
     h[0][1] = 0.125;
@@ -225,11 +238,22 @@ int main(int argc,char** argv) {
 
 // open and write output image
 MPI_File_open(new,filenameout,MPI_MODE_CREATE|MPI_MODE_WRONLY,MPI_INFO_NULL,&f);
-int offset = my_rank*BUFSIZE*sizeof(unsigned char);
+//int offset = my_rank*BUFSIZE*sizeof(unsigned char);
 
-MPI_File_write_at(f,offset,repeat(b,IMAX,JMAX),BUFSIZE,MPI_UNSIGNED_CHAR,&status);
-printf("\nRank: %d, Offset: %d, bufsize=%d\n", my_rank, offset, BUFSIZE);
+//MPI_File_write_at(f,offset,repeat(b,IMAX,JMAX),BUFSIZE,MPI_UNSIGNED_CHAR,&status);
+//printf("\nRank: %d, Offset: %d, bufsize=%d\n", my_rank, offset, BUFSIZE);
+//MPI_File_close(&f);
+
+/*~~~~~~~~~~~~~~*/
+offsetb = 0;
+offsetf = (my_rank/4)*4*IMAX*JMAX + (my_rank%4)*JMAX;
+for(int i = 0; i < IMAX; i++){
+  MPI_File_write_at(f,offsetf,&buffer[offsetb],JMAX,MPI_UNSIGNED_CHAR,&status);
+  offsetf += JMAX*4+1;   // 4 = sqrt(comm_sz)
+  offsetb += JMAX;
+}
 MPI_File_close(&f);
+/*~~~~~~~~~~~~~~*/
 
     MPI_Barrier(new);
     double end = MPI_Wtime();
