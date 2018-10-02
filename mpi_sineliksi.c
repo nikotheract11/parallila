@@ -115,6 +115,7 @@ int main(int argc,char** argv) {
    MPI_File f;
    MPI_File_open(new,filenamein,MPI_MODE_RDONLY,MPI_INFO_NULL,&f);
    int BUFSIZE = FILESIZE/comm_sz;
+   MPI_Comm_rank(new, &my_rank);
    MPI_File_seek(f,my_rank*BUFSIZE,MPI_SEEK_SET);
    unsigned char* buffer = malloc(BUFSIZE*sizeof(unsigned char));
    MPI_File_read(f,buffer,BUFSIZE/sizeof(unsigned char),MPI_UNSIGNED_CHAR,&status);
