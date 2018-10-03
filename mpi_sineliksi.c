@@ -2,6 +2,7 @@
 #include <mpi.h>
 #include <time.h>
 #include <stdlib.h>
+#include <math.h>
 #include <omp.h>
 
 //function to calculate output matrix
@@ -91,14 +92,12 @@ int main(int argc,char** argv) {
    MPI_Comm_size(MPI_COMM_WORLD, &comm_sz);
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
-   printf("imax=%d\n", IMAX);
-   IMAX/=4;
-   printf("imax=%d\n", IMAX);
-   JMAX/=4;
+   IMAX /= sqrt(comm_sz);
+   JMAX /= sqrt(comm_sz);
    ROWS = JMAX + 2;
 
    MPI_Comm new;
-   int dims[2] = {4,4} ;
+   int dims[2] = {sqrt(comm_sz),sqrt(comm_sz)} ;
    int periods[2] = {0,0};
    MPI_Cart_create(MPI_COMM_WORLD,2,dims,periods,0,&new);
 
@@ -109,18 +108,28 @@ int main(int argc,char** argv) {
    MPI_Type_commit(&Row);
 
    unsigned char* a ;
-   //mat(&a,IMAX,JMAX);
 
    // open and read input image
    MPI_File f;
    MPI_File_open(new,filenamein,MPI_MODE_RDONLY,MPI_INFO_NULL,&f);
    int BUFSIZE = FILESIZE/comm_sz;
    MPI_Comm_rank(new, &my_rank);
-   MPI_File_seek(f,my_rank*BUFSIZE,MPI_SEEK_SET);
+
+   int offsetb = 0;
+   MPI_Offset offsetf = (my_rank/sqrt(comm_sz))*sqrt(comm_sz)*IMAX*JMAX + (my_rank%(int)sqrt(comm_sz))*JMAX;
+   MPI_File_seek(f,offsetf,MPI_SEEK_SET);
+
    unsigned char* buffer = malloc(BUFSIZE*sizeof(unsigned char));
-   MPI_File_read(f,buffer,BUFSIZE/sizeof(unsigned char),MPI_UNSIGNED_CHAR,&status);
-   printf("\nrank: %d, buffer[%d]: %u", my_rank, my_rank*BUFSIZE, buffer[0]);
+
+   for(int i = 0; i < IMAX; i++){
+     MPI_File_read(f,&buffer[offsetb],JMAX,MPI_UNSIGNED_CHAR,&status);
+     offsetf += JMAX*sqrt(comm_sz);   
+     offsetb += JMAX;
+     MPI_File_seek(f,offsetf,MPI_SEEK_SET);
+   }
    MPI_File_close(&f);
+
+   /* a contains buffer and also halo points */
    a = fit(buffer,IMAX,JMAX);
 
    int E,W,N,S,NE,NW,SE,SW;
@@ -145,91 +154,82 @@ int main(int argc,char** argv) {
 
 
    while(1){
-   MPI_Isend(&a[1*ROWS+1],1,Row,N,0,new,&reqsend[0]);       // Send row north
 
-   MPI_Isend(&a[IMAX*ROWS+1],1,Row,S,0,new,&reqsend[1]);    // Send row south
-   MPI_Isend(&a[1*ROWS+2],1,Column,W,0,new,&reqsend[2]);    // Send column west
-   MPI_Isend(&a[1*ROWS+JMAX],1,Column,E,0,new,&reqsend[3]); // Send column east
-   MPI_Isend(&a[1*ROWS+1],1,MPI_UNSIGNED_CHAR,NW,0,new,&reqsend[4]);
-   MPI_Isend(&a[1*ROWS+JMAX],1,MPI_UNSIGNED_CHAR,NE,0,new,&reqsend[5]);
-   MPI_Isend(&a[IMAX*ROWS+1],1,MPI_UNSIGNED_CHAR,SW,0,new,&reqsend[6]);
-   MPI_Isend(&a[IMAX*ROWS+JMAX],1,MPI_UNSIGNED_CHAR,SE,0,new,&reqsend[7]);
-
-
-
-   MPI_Irecv(&a[0*ROWS+1], 1, Row, N, 0, new, &reqrecv[0]);  // recv from north
-   MPI_Irecv(&a[(IMAX+1)*ROWS+1], 1, Row, S, 0, new, &reqrecv[1]); // recv from south
-   MPI_Irecv(&a[1*ROWS+0], 1, Column, W, 0, new, &reqrecv[2]); // recv from west
-   MPI_Irecv(&a[1*ROWS+JMAX+1], 1, Column, E, 0, new, &reqrecv[3]);  // recv from east
-
-   MPI_Irecv(&a[0*ROWS+0], 1, MPI_UNSIGNED_CHAR, NW, 0, new, &reqrecv[4]);
-   MPI_Irecv(&a[0*ROWS+JMAX+1], 1, MPI_UNSIGNED_CHAR, NE, 0, new, &reqrecv[5]);
-   MPI_Irecv(&a[(IMAX+1)*ROWS+0], 1, MPI_UNSIGNED_CHAR, SW, 0, new, &reqrecv[6]);
-   MPI_Irecv(&a[(IMAX+1)*ROWS+JMAX+1], 1, MPI_UNSIGNED_CHAR, SE, 0, new, &reqrecv[7]);
-
-   printf("2. OK\n");
+	   MPI_Isend(&a[1*ROWS+1],1,Row,N,0,new,&reqsend[0]);       // Send row north
+	   MPI_Isend(&a[IMAX*ROWS+1],1,Row,S,0,new,&reqsend[1]);    // Send row south
+	   MPI_Isend(&a[1*ROWS+2],1,Column,W,0,new,&reqsend[2]);    // Send column west
+	   MPI_Isend(&a[1*ROWS+JMAX],1,Column,E,0,new,&reqsend[3]); // Send column east
+	   MPI_Isend(&a[1*ROWS+1],1,MPI_UNSIGNED_CHAR,NW,0,new,&reqsend[4]);
+	   MPI_Isend(&a[1*ROWS+JMAX],1,MPI_UNSIGNED_CHAR,NE,0,new,&reqsend[5]);
+	   MPI_Isend(&a[IMAX*ROWS+1],1,MPI_UNSIGNED_CHAR,SW,0,new,&reqsend[6]);
+	   MPI_Isend(&a[IMAX*ROWS+JMAX],1,MPI_UNSIGNED_CHAR,SE,0,new,&reqsend[7]);
 
 
-   // calculate inner subarray
-   unsigned char** h;//[3][3];// = {{0.0625, 0.125, 0.0625}, {0.125, 0.25, 0.125}, {0.0625, 0.125, 0.0625}};
-   h = malloc(3*sizeof(char*));
-   for(int i=0;i<3;i++){
-     h[i] = malloc(3*sizeof(unsigned char));
-     for(int j=0;j<3;j++){
-       h[i][j] = j;
-     }
-    /*h[0][0] = 0.0625;
-    h[0][1] = 0.125;
-    h[0][2] = 0.0625;
-    h[1][0] = 0.125;
-    h[1][1] = 0.25;
-    h[1][2] = 0.125;
-    h[2][0] = 0.0625;
-    h[2][1] = 0.125;
-    h[2][2] = 0.0625;*/
+	   MPI_Irecv(&a[0*ROWS+1], 1, Row, N, 0, new, &reqrecv[0]);  // recv from north
+	   MPI_Irecv(&a[(IMAX+1)*ROWS+1], 1, Row, S, 0, new, &reqrecv[1]); // recv from south
+	   MPI_Irecv(&a[1*ROWS+0], 1, Column, W, 0, new, &reqrecv[2]); // recv from west
+	   MPI_Irecv(&a[1*ROWS+JMAX+1], 1, Column, E, 0, new, &reqrecv[3]);  // recv from east
+	   MPI_Irecv(&a[0*ROWS+0], 1, MPI_UNSIGNED_CHAR, NW, 0, new, &reqrecv[4]);
+	   MPI_Irecv(&a[0*ROWS+JMAX+1], 1, MPI_UNSIGNED_CHAR, NE, 0, new, &reqrecv[5]);
+	   MPI_Irecv(&a[(IMAX+1)*ROWS+0], 1, MPI_UNSIGNED_CHAR, SW, 0, new, &reqrecv[6]);
+	   MPI_Irecv(&a[(IMAX+1)*ROWS+JMAX+1], 1, MPI_UNSIGNED_CHAR, SE, 0, new, &reqrecv[7]);
 
-   }
-   #pragma omp parallel
-   {
-   #pragma omp for collapse(2)
-   for(int i = 2; i < IMAX; i++)
-      for(int j = 2; j < JMAX; j++)
-          b[i*ROWS+j] = output(a,i,j,h,1,ROWS);
+	   // calculate inner subarray
+	   unsigned char** h;
+	   h = malloc(3*sizeof(char*));
+	   for(int i=0;i<3;i++){
+	     h[i] = malloc(3*sizeof(unsigned char));
+	     for(int j=0;j<3;j++){
+	       h[i][j] = i;
+	     }
+	   }
 
-    #pragma omp single
-    MPI_Waitall(8,reqrecv,MPI_STATUSES_IGNORE);
+	   #pragma omp parallel
+	   {
+	   #pragma omp for collapse(2)
+	   for(int i = 2; i < IMAX; i++)
+	      for(int j = 2; j < JMAX; j++)
+	          b[i*ROWS+j] = output(a,i,j,h,1,ROWS);
 
-    #pragma omp barrier
+	    #pragma omp single
+	    MPI_Waitall(8,reqrecv,MPI_STATUSES_IGNORE);
 
-    #pragma omp parallel for
-    for(int j = 1; j<JMAX; j++){
-      b[1*ROWS+j] = output(a,1,j,h,1,ROWS);  // first row
-      b[IMAX*ROWS+j] = output(a,IMAX,j,h,1,ROWS); // last row
-    }
+	    #pragma omp barrier
 
-    /* now we start from 2 and end up to IMAX-1 because the first and
-    the last element of the first column is also calculated in the
-    first and last row */
-    #pragma omp parallel for
-    for(int i = 2; i<IMAX; i++){
-      b[i*ROWS+1] = output(a,i,1,h,1,ROWS);        // first column
-      b[i*ROWS+JMAX] = output(a,i,JMAX,h,1,ROWS);  // last column
-    }
-  }
+	    #pragma omp parallel for
+	    for(int j = 1; j<JMAX; j++){
+	      b[1*ROWS+j] = output(a,1,j,h,1,ROWS);  // first row
+	      b[IMAX*ROWS+j] = output(a,IMAX,j,h,1,ROWS); // last row
+	    }
 
-    MPI_Waitall(8,reqsend,MPI_STATUSES_IGNORE);
-    //if(equals(a,b,IMAX,JMAX)) break;
-    break;
-    a = b;
-}
+	    /* now we start from 2 and end up to IMAX-1 because the first and
+	    the last element of the first column is also calculated in the
+	    first and last row */
+	    #pragma omp parallel for
+	    for(int i = 2; i<IMAX; i++){
+	      b[i*ROWS+1] = output(a,i,1,h,1,ROWS);        // first column
+	      b[i*ROWS+JMAX] = output(a,i,JMAX,h,1,ROWS);  // last column
+	    }
+	  }
 
-// open and write output image
-MPI_File_open(new,filenameout,MPI_MODE_CREATE|MPI_MODE_WRONLY,MPI_INFO_NULL,&f);
-int offset = my_rank*BUFSIZE*sizeof(unsigned char);
+	    MPI_Waitall(8,reqsend,MPI_STATUSES_IGNORE);
+	    if(equals(a,b,IMAX,JMAX)) break;
+	    a = b;
+	}
 
-MPI_File_write_at(f,offset,repeat(b,IMAX,JMAX),BUFSIZE,MPI_UNSIGNED_CHAR,&status);
-printf("\nRank: %d, Offset: %d, bufsize=%d\n", my_rank, offset, BUFSIZE);
-MPI_File_close(&f);
+	// open and write output image
+	MPI_File_open(new,filenameout,MPI_MODE_CREATE|MPI_MODE_WRONLY,MPI_INFO_NULL,&f);
+
+	/* remove halo points from b */
+	b = repeat(b,IMAX,JMAX);
+	offsetb = 0;
+	offsetf = (my_rank/sqrt(comm_sz))*sqrt(comm_sz)*IMAX*JMAX + (my_rank%(int)sqrt(comm_sz))*JMAX;
+	for(int i = 0; i < IMAX; i++){
+	  MPI_File_write_at(f,offsetf,&b[offsetb],JMAX,MPI_UNSIGNED_CHAR,&status);
+	  offsetf += JMAX*sqrt(comm_sz); 
+	  offsetb += JMAX;
+	}
+	MPI_File_close(&f);
 
     MPI_Barrier(new);
     double end = MPI_Wtime();
@@ -237,4 +237,4 @@ MPI_File_close(&f);
 
    MPI_Finalize();
    return 0;
-}  /* main */
+} /* main */
