@@ -128,7 +128,7 @@ int main(int argc,char** argv) {
    unsigned char* buffer = malloc(BUFSIZE*sizeof(unsigned char));
    for(int i = 0; i < IMAX; i++){
      MPI_File_read(f,&buffer[offsetb],JMAX,MPI_UNSIGNED_CHAR,&status);
-     offsetf += JMAX*4+1;   // 4 = sqrt(comm_sz)
+     offsetf += JMAX*4;   // 4 = sqrt(comm_sz)
      offsetb += JMAX;
      MPI_File_seek(f,offsetf,MPI_SEEK_SET);
    }
@@ -158,6 +158,7 @@ int main(int argc,char** argv) {
 
 
    while(1){
+
    MPI_Isend(&a[1*ROWS+1],1,Row,N,0,new,&reqsend[0]);       // Send row north
 
    MPI_Isend(&a[IMAX*ROWS+1],1,Row,S,0,new,&reqsend[1]);    // Send row south
@@ -167,7 +168,6 @@ int main(int argc,char** argv) {
    MPI_Isend(&a[1*ROWS+JMAX],1,MPI_UNSIGNED_CHAR,NE,0,new,&reqsend[5]);
    MPI_Isend(&a[IMAX*ROWS+1],1,MPI_UNSIGNED_CHAR,SW,0,new,&reqsend[6]);
    MPI_Isend(&a[IMAX*ROWS+JMAX],1,MPI_UNSIGNED_CHAR,SE,0,new,&reqsend[7]);
-
 
 
    MPI_Irecv(&a[0*ROWS+1], 1, Row, N, 0, new, &reqrecv[0]);  // recv from north
@@ -189,7 +189,7 @@ int main(int argc,char** argv) {
    for(int i=0;i<3;i++){
      h[i] = malloc(3*sizeof(unsigned char));
      for(int j=0;j<3;j++){
-       h[i][j] = i*j*100;
+       h[i][j] = i;
      }
     /*h[0][0] = 0.0625;
     h[0][1] = 0.125;
@@ -245,11 +245,12 @@ MPI_File_open(new,filenameout,MPI_MODE_CREATE|MPI_MODE_WRONLY,MPI_INFO_NULL,&f);
 //MPI_File_close(&f);
 
 /*~~~~~~~~~~~~~~*/
+b = repeat(b,IMAX,JMAX);
 offsetb = 0;
 offsetf = (my_rank/4)*4*IMAX*JMAX + (my_rank%4)*JMAX;
 for(int i = 0; i < IMAX; i++){
-  MPI_File_write_at(f,offsetf,&buffer[offsetb],JMAX,MPI_UNSIGNED_CHAR,&status);
-  offsetf += JMAX*4+1;   // 4 = sqrt(comm_sz)
+  MPI_File_write_at(f,offsetf,&b[offsetb],JMAX,MPI_UNSIGNED_CHAR,&status);
+  offsetf += JMAX*4;   // 4 = sqrt(comm_sz)
   offsetb += JMAX;
 }
 MPI_File_close(&f);
