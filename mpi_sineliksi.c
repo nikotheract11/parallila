@@ -2,47 +2,26 @@
 #include <mpi.h>
 #include <time.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 //function to calculate output matrix
-static inline int output(unsigned char* A, int i, int j, unsigned char** h, int s,int ROWS){
+/*static inline int output(unsigned char* A, int i, int j, unsigned char** h, int s,int ROWS){
   unsigned char temp = 0;
   int p, q;
   for(p = -s; p < s; p++)
    for(q = -s; q < s; q++)
      temp += A[(i-p)*ROWS+j-q]*h[p+1][q+1];
   return temp;
+}*/
+
+static inline int output(unsigned char* A, int i, int j, unsigned char** h, int s,int ROWS){
+
+  return A[(i+1)*ROWS+j+1]*h[0][0] + A[(i+1)*ROWS+j]*h[0][1] + A[(i+1)*ROWS+j-1]*h[0][2] +
+         A[i*ROWS+j+1]*h[1][0]     + A[i*ROWS+j]*h[1][1]     + A[i*ROWS+j-1]*h[1][2]     +
+         A[(i-1)*ROWS+j+1]*h[2][0] + A[(i-1)*ROWS+j]*h[2][1] + A[(i-1)*ROWS+j-1]*h[2][2];
 }
 
-void resize(char *file,int new_i,int new_j,int i,int j)
-{
-   FILE *fp;
-   FILE *w;
-
-   int off=0;
-   int ofw=0;
-
-   fp=fopen(file,"r");
-   w=fopen("new.raw","w");
-
-   char * buf = malloc(new_i * sizeof(char));
-
-   for(int k=0;k<new_j;k++){
-
-   	fread(buf,1,new_i,fp);
-   	fwrite(buf,1,new_i,w);
-
-      off += i;
-      ofw += new_i;
-
-  	   fseek(fp,off,SEEK_SET);
-      fseek(w,ofw,SEEK_SET);
-   }
-
-   fclose(fp);
-   fclose(w);
-
-}
 
 static inline char equals(unsigned char* before,unsigned char* after,int IMAX,int JMAX){
   for(int i=1;i<IMAX+1;i++){
@@ -97,13 +76,16 @@ static inline unsigned char* repeat(unsigned char *buf,int IMAX,int JMAX,int pix
 
 int main(int argc,char** argv) {
    int my_rank, comm_sz;
+   int auto_gen = 0;    // if this flag is set to 1 then the programm generates auto values
    MPI_Datatype Row,Column;
    MPI_Status status;
 
    char* filenamein = argv[3];
-   char* filenameout = "output.raw";
 
-   resize(filenamein,1000,1200,1920,2520);
+   if(!strcmp(filenamein,"auto"))
+      auto_gen = 1;
+
+   char* filenameout = "output.raw";
 
    int IMAX = atoi(argv[1]);
    int JMAX = atoi(argv[2]);
@@ -111,11 +93,13 @@ int main(int argc,char** argv) {
    int ROWS = JMAX+2;
 
    // calculate size of the file
-   FILE *fp;
-   fp=fopen(filenamein,"r");
-   fseek(fp, 0L, SEEK_END);
-   int FILESIZE = (int)ftell(fp);
-   fclose(fp);
+   if(!auto_gen){
+      FILE *fp;
+      fp=fopen(filenamein,"r");
+      fseek(fp, 0L, SEEK_END);
+      int FILESIZE = (int)ftell(fp);
+      fclose(fp);
+   }
 
 
    MPI_Init(NULL, NULL);
@@ -125,7 +109,6 @@ int main(int argc,char** argv) {
    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
    IMAX /= sqrt(comm_sz);
-//   IMAX *= pix;
    JMAX /= sqrt(comm_sz);
    JMAX *= pix;
    ROWS = JMAX + 2*pix;
@@ -144,27 +127,30 @@ int main(int argc,char** argv) {
    unsigned char* a ;
 
    // open and read input image
-   MPI_File f;
-   MPI_File_open(new,filenamein,MPI_MODE_RDONLY,MPI_INFO_NULL,&f);
-   int BUFSIZE = IMAX*JMAX;
-   MPI_Comm_rank(new, &my_rank);
+   if(!auto_gen){
+      MPI_File f;
+      MPI_File_open(new,filenamein,MPI_MODE_RDONLY,MPI_INFO_NULL,&f);
+      int BUFSIZE = IMAX*JMAX;
+      MPI_Comm_rank(new, &my_rank);
 
-   int offsetb = 0;
-   MPI_Offset offsetf = (my_rank/sqrt(comm_sz))*sqrt(comm_sz)*IMAX*JMAX + (my_rank%(int)sqrt(comm_sz))*JMAX;
-   MPI_File_seek(f,offsetf,MPI_SEEK_SET);
+      int offsetb = 0;
+      MPI_Offset offsetf = (my_rank/sqrt(comm_sz))*sqrt(comm_sz)*IMAX*JMAX + (my_rank%(int)sqrt(comm_sz))*JMAX;
+      MPI_File_seek(f,offsetf,MPI_SEEK_SET);
 
-   unsigned char* buffer = malloc(BUFSIZE*sizeof(unsigned char));
+      unsigned char* buffer = malloc(BUFSIZE*sizeof(unsigned char));
 
-   for(int i = 0; i < IMAX; i++){
-     MPI_File_read(f,&buffer[offsetb],JMAX,MPI_UNSIGNED_CHAR,&status);
-     offsetf += JMAX*sqrt(comm_sz);
-     offsetb += JMAX;
-     MPI_File_seek(f,offsetf,MPI_SEEK_SET);
+      for(int i = 0; i < IMAX; i++){
+        MPI_File_read(f,&buffer[offsetb],JMAX,MPI_UNSIGNED_CHAR,&status);
+        offsetf += JMAX*sqrt(comm_sz);
+        offsetb += JMAX;
+        MPI_File_seek(f,offsetf,MPI_SEEK_SET);
+      }
+      MPI_File_close(&f);
+
+      /* a contains buffer and also halo points */
+      a = fit(buffer,IMAX,JMAX,pix);
    }
-   MPI_File_close(&f);
-
-   /* a contains buffer and also halo points */
-   a = fit(buffer,IMAX,JMAX,pix);
+   else mat(&a,IMAX,JMAX);
 
    int E,W,N,S,NE,NW,SE,SW;
    MPI_Cart_shift(new,0,1,&N,&S);
@@ -208,7 +194,7 @@ int main(int argc,char** argv) {
 	   MPI_Irecv(&a[(IMAX+1)*ROWS+0], 1*pix, MPI_UNSIGNED_CHAR, SW, 0, new, &reqrecv[6]);
 	   MPI_Irecv(&a[(IMAX+1)*ROWS+JMAX+1*pix], 1*pix, MPI_UNSIGNED_CHAR, SE, 0, new, &reqrecv[7]);
 
-	   // calculate inner subarray
+
 	   unsigned char** h;
 	   h = malloc(3*sizeof(char*));
 	   for(int i=0;i<3;i++){
@@ -221,6 +207,7 @@ int main(int argc,char** argv) {
 	//   #pragma omp parallel
 	 //  {
 	 //  #pragma omp for collapse(2)
+    // calculate inner subarray
 	   for(int i = 2; i < IMAX; i++)
 	      for(int j = 2; j < JMAX; j++)
 	          b[i*ROWS+j] = output(a,i,j,h,1,ROWS);
@@ -253,18 +240,23 @@ int main(int argc,char** argv) {
 	}
 
 	// open and write output image
-	MPI_File_open(new,filenameout,MPI_MODE_CREATE|MPI_MODE_WRONLY,MPI_INFO_NULL,&f);
+   if(!auto_gen){
+      MPI_File f;
+      int offsetb = 0;
+      MPI_Offset offsetf;
+   	MPI_File_open(new,filenameout,MPI_MODE_CREATE|MPI_MODE_WRONLY,MPI_INFO_NULL,&f);
 
-	/* remove halo points from b */
-	b = repeat(b,IMAX,JMAX,pix);
-	offsetb = 0;
-	offsetf = (my_rank/sqrt(comm_sz))*sqrt(comm_sz)*IMAX*JMAX + (my_rank%(int)sqrt(comm_sz))*JMAX;
-	for(int i = 0; i < IMAX; i++){
-	  MPI_File_write_at(f,offsetf,&b[offsetb],JMAX,MPI_UNSIGNED_CHAR,&status);
-	  offsetf += JMAX*sqrt(comm_sz);
-	  offsetb += JMAX;
-	}
-	MPI_File_close(&f);
+   	/* remove halo points from b */
+   	b = repeat(b,IMAX,JMAX,pix);
+   	offsetb = 0;
+   	offsetf = (my_rank/sqrt(comm_sz))*sqrt(comm_sz)*IMAX*JMAX + (my_rank%(int)sqrt(comm_sz))*JMAX;
+   	for(int i = 0; i < IMAX; i++){
+   	  MPI_File_write_at(f,offsetf,&b[offsetb],JMAX,MPI_UNSIGNED_CHAR,&status);
+   	  offsetf += JMAX*sqrt(comm_sz);
+   	  offsetb += JMAX;
+   	}
+   	MPI_File_close(&f);
+   }
 
     MPI_Barrier(new);
     double end = MPI_Wtime();
