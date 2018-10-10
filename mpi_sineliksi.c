@@ -234,6 +234,13 @@ int main(int argc,char** argv) {
 	//  }
 
 	    MPI_Waitall(8,reqsend,MPI_STATUSES_IGNORE);
+	float avg = 0;
+      for(int i = 0; i < IMAX*JMAX; i++)
+        avg += b[i];
+      avg /= IMAX*JMAX;
+
+      float global;
+      MPI_Reduce(&avg,&global,comm_sz,MPI_FLOAT,MPI_SUM,0,new);
 	   // if(equals(a,b,IMAX,JMAX)) break;
       break;
 	    a = b;
