@@ -1,3 +1,3 @@
-# parallila
+# parallila systimata
 
-git_summeraki_2kapa18
+Using MPI for processing an image
